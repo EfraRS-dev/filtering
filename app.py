@@ -1,5 +1,5 @@
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import timedelta
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -26,7 +26,9 @@ def cargar_archivo():
         messagebox.showerror("Error", f"No se pudo leer el archivo.\n{e}")
 
 def procesar_archivo():
+
     global estado_label
+
     if not hasattr(app, "dataframe_original"):
         estado_label.config(text="Estado: No hay archivo cargado", fg="red")
         messagebox.showerror("Error", "Primero debes cargar un archivo.")
@@ -37,13 +39,19 @@ def procesar_archivo():
         hoy = pd.Timestamp.today().normalize()
         modo = filtro_var.get()
 
+        if modo not in ["dias", "mes"]:
+            messagebox.showerror("Error", "Selecciona un tipo de filtrado válido.")
+            return
+
         if modo == "dias":
             dias_horizonte = int(slider_dias.get())
             fecha_horizonte = hoy + timedelta(days=dias_horizonte)
             resultado = df[(df['Contrato Fin'] >= hoy) & (df['Contrato Fin'] <= fecha_horizonte)].copy()
             resultado['Dias_faltantes'] = (resultado['Contrato Fin'] - hoy).dt.days
+            resultado['Finaliza el'] = resultado['Contrato Fin'].dt.strftime('%d/%m/%Y')
 
         elif modo == "mes":
+
             if hoy.month == 12:
                 mes_siguiente = 1
                 sigYear = hoy.year + 1
@@ -57,6 +65,7 @@ def procesar_archivo():
 
             resultado = df[(df['Contrato Fin'] >= primer_dia_mes) & (df['Contrato Fin'] <= ultimo_dia_mes)].copy()
             resultado['Dias_faltantes'] = (resultado['Contrato Fin'] - hoy).dt.days
+            resultado['Finaliza el'] = resultado['Contrato Fin'].dt.strftime('%d/%m/%Y')
 
         resultado = resultado.sort_values(by='Contrato Fin')
         resultado['Contrato Fin'] = resultado['Contrato Fin'].dt.strftime('%d/%m/%Y')
@@ -79,6 +88,7 @@ def procesar_archivo():
         messagebox.showerror("Error durante el procesamiento", str(e))
 
 def guardar_resultado():
+
     if not hasattr(app, "resultado") or app.resultado.empty:
         messagebox.showerror("Error", "No hay datos procesados para guardar.")
         return

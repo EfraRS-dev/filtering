@@ -6,6 +6,9 @@ from tkinter import filedialog, messagebox, ttk
 # Variables globales
 estado_label = None
 
+GEOMETRY = "900x700"
+TITLE = "Filtro de Contratos SENA"
+
 def cargar_archivo():
     global estado_label
     ruta_archivo = filedialog.askopenfilename(
@@ -26,7 +29,6 @@ def cargar_archivo():
         messagebox.showerror("Error", f"No se pudo leer el archivo.\n{e}")
 
 def procesar_archivo():
-
     global estado_label
 
     if not hasattr(app, "dataframe_original"):
@@ -48,8 +50,7 @@ def procesar_archivo():
             fecha_horizonte = hoy + timedelta(days=dias_horizonte)
             resultado = df[(df['Contrato Fin'] >= hoy) & (df['Contrato Fin'] <= fecha_horizonte)].copy()
             resultado['Dias_faltantes'] = (resultado['Contrato Fin'] - hoy).dt.days
-            resultado['Finaliza el'] = resultado['Contrato Fin'].dt.strftime('%d/%m/%Y')
-
+            
         elif modo == "mes":
 
             if hoy.month == 12:
@@ -65,30 +66,43 @@ def procesar_archivo():
 
             resultado = df[(df['Contrato Fin'] >= primer_dia_mes) & (df['Contrato Fin'] <= ultimo_dia_mes)].copy()
             resultado['Dias_faltantes'] = (resultado['Contrato Fin'] - hoy).dt.days
-            resultado['Finaliza el'] = resultado['Contrato Fin'].dt.strftime('%d/%m/%Y')
-
+            
+        # Ordenar por fecha de contrato
         resultado = resultado.sort_values(by='Contrato Fin')
-        resultado['Contrato Fin'] = resultado['Contrato Fin'].dt.strftime('%d/%m/%Y')
+        
+        # Formatear la fecha para mostrar
+        resultado['contratoVence'] = resultado['Contrato Fin'].dt.strftime('%d/%m/%Y')
+        
+        # Guardar el resultado completo para exportar después
         app.resultado = resultado
-
+        
         # Mostrar todos los registros
         vista.delete(*vista.get_children())
         if resultado.empty:
             messagebox.showinfo("Información", "No se encontraron registros que cumplan con los criterios.")
             return
             
-        # Mostrar todos los registros en la tabla
+        # Mostrar todos los registros en la tabla con las columnas solicitadas
         for _, row in resultado.iterrows():
-            valores = [row.get(col, "") for col in ["Numero documento", "Contrato Fin", "Dias_faltantes"]]
+            valores = [
+                row.get('Razon Social', ""),
+                row.get('Teléfono empresa', ""),
+                row.get('Correo electrónico', ""),
+                row.get('Apellidos', ""),
+                row.get('Nombres', ""),
+                row.get('Especialidad', ""),
+                row.get('contratoVence', ""),
+                row.get('Dias_faltantes', "")
+            ]
             vista.insert('', 'end', values=valores)
 
         estado_label.config(text=f"Estado: Se encontraron {len(resultado)} registros", fg="green")
         messagebox.showinfo("Éxito", f"Datos procesados correctamente. Se encontraron {len(resultado)} registros.")
     except Exception as e:
         messagebox.showerror("Error durante el procesamiento", str(e))
+        print(f"Error detallado: {e}")  # Para depuración
 
 def guardar_resultado():
-
     if not hasattr(app, "resultado") or app.resultado.empty:
         messagebox.showerror("Error", "No hay datos procesados para guardar.")
         return
@@ -100,16 +114,32 @@ def guardar_resultado():
     )
     if ruta_guardado:
         try:
-            app.resultado.to_excel(ruta_guardado, index=False)
+            # Seleccionar solo las columnas solicitadas para exportar
+            columnas_exportar = [
+                'Razon Social',
+                'Teléfono empresa',
+                'Correo electrónico',
+                'Apellidos',
+                'Nombres',
+                'Especialidad',
+                'contratoVence',
+                'Dias_faltantes'
+            ]
+            
+            # Crear un DataFrame con solo las columnas necesarias
+            df_exportar = app.resultado[columnas_exportar].copy()
+            
+            # Exportar a Excel
+            df_exportar.to_excel(ruta_guardado, index=False)
             messagebox.showinfo("Guardado", f"Archivo guardado en:\n{ruta_guardado}")
         except Exception as e:
             messagebox.showerror("Error al guardar", str(e))
-
+            print(f"Error detallado: {e}")  # Para depuración
 
 # Crear ventana principal
 app = tk.Tk()
-app.title("Filtrado de Contratos")
-app.geometry("850x550")
+app.title(TITLE)
+app.geometry(GEOMETRY)
 
 # Frame para el botón de carga y el estado
 frame_carga = tk.Frame(app)
@@ -158,14 +188,31 @@ tk.Button(app, text="Procesar Datos", command=procesar_archivo).pack(pady=10)
 frame_tabla = tk.Frame(app)
 frame_tabla.pack(pady=10, fill="both", expand=True)
 
-# Tabla de visualización completa
-cols = ["Número de documento", "Fecha de fin del contrato", "Días faltantes"]
+# Tabla de visualización completa con las columnas solicitadas
+cols = [
+    "Razón Social",
+    "Teléfono empresa",
+    "Correo electrónico",
+    "Apellidos",
+    "Nombres", 
+    "Especialidad",
+    "contratoVence",
+    "Días faltantes"
+]
 vista = ttk.Treeview(frame_tabla, columns=cols, show='headings', height=15)
 
 # Configurar columnas con ancho adecuado
 for col in cols:
     vista.heading(col, text=col)
-    vista.column(col, width=200)
+    # Ajustar los anchos según el tipo de contenido
+    if col in ["Teléfono empresa", "Días faltantes"]:
+        vista.column(col, width=100)
+    elif col in ["contratoVence"]:
+        vista.column(col, width=150)
+    elif col in ["Correo electrónico", "Razón Social"]:
+        vista.column(col, width=200)
+    else:
+        vista.column(col, width=150)
 
 # Añadir scrollbars
 scrollbar_y = ttk.Scrollbar(frame_tabla, orient="vertical", command=vista.yview)
